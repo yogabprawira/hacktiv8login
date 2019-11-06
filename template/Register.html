@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register Page</title>
+</head>
+<body>
+    <form action="/register" method="post">
+        Name: <input type="text" name="name"><br>
+        Username: <input type="text" name="username"><br>
+        Password: <input type="password" name="password"><br>
+        Email: <input type="text" name="email"><br>
+        <input type="submit" value="Register">
+    </form>
+    <div>{{.ErrStr}}</div>
+</body>
+</html>

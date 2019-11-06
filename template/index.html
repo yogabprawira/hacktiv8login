@@ -2,9 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
     <title>Member Area</title>
 </head>
 <body>
-    <div>Hello</div>
+    <table class="table">
+        <thead>
+        <tr class="table-dark">
+            <th scope="col">Name</th>
+            <th scope="col">Username</th>
+            <th scope="col">Email</th>
+            <th scope="col">Password</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{range .UserList}}
+            <tr>
+                <td>{{ .Name }}</td>
+                <td>{{ .Username }}</td>
+                <td>{{ .Email }}</td>
+                <td>{{ .Password }}</td>
+            </tr>
+        {{end}}
+        </tbody>
+    </table>
 </body>
 </html>

@@ -28,6 +28,7 @@ type ResponseData struct {
 	ErrStr string `json:"err_str"`
 }
 
+const FrontEndUrl = "http://localhost:8080"
 const BackendUrl = "http://localhost:9090"
 const LoginPage = "./template/login.html"
 const RegisterPage = "./template/register.html"
@@ -104,7 +105,8 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		showPage(w, "Login error", LoginPage)
 		return
 	}
-	showPage(w, "Login success", LoginPage)
+	//showPage(w, "Login success", LoginPage)
+	http.Redirect(w, r, FrontEndUrl, http.StatusMovedPermanently)
 }
 
 func register(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -170,11 +172,42 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		showPage(w, "Registration failed", RegisterPage)
 		return
 	}
-	showPage(w, "Registration success", RegisterPage)
+	//showPage(w, "Registration success", RegisterPage)
+	http.Redirect(w, r, FrontEndUrl, http.StatusMovedPermanently)
 }
 
 func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	showPage(w, "", IndexPage)
+	req := &UserData{}
+	reqJson, _ := json.Marshal(req)
+	request, err := http.NewRequest("POST", BackendUrl+"/list", bytes.NewBuffer(reqJson))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	request.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	response, err := client.Do(request)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer response.Body.Close()
+	resp := &UserDataList{}
+	err = json.NewDecoder(response.Body).Decode(resp)
+	if err != nil || resp.Resp.ErrStr != "success" {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	t, err := template.ParseFiles(IndexPage)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	_ = t.Execute(w, resp)
 }
 
 func main() {

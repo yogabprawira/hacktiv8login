@@ -17,6 +17,7 @@ type UserData struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Role     string `json:"role"`
 }
 
 type UserDataList struct {
@@ -35,20 +36,18 @@ const RegisterPage = "./template/register.html"
 const IndexPage = "./template/index.html"
 const PwdSalt = "rIc[@(}sgO>LNyAzaJ?k.RUhYOKZtQ#rlB+$r-e%rr*L-CF+33JTrg@}50E`X/50"
 
-func showPage(w http.ResponseWriter, errStr string, pagePath string) {
-	log.Println(errStr)
-	resp := &ResponseData{ErrStr: errStr}
+func showPage(w http.ResponseWriter, data interface{}, pagePath string) {
 	t, _ := template.ParseFiles(pagePath)
-	_ = t.Execute(w, resp)
+	_ = t.Execute(w, data)
 }
 
 func login(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	showPage(w, "", LoginPage)
+	showPage(w, nil, LoginPage)
 }
 
-func hashPwd(pwd string, salt string) string {
+func hashPwd(username string, pwd string, salt string) string {
 	s, _ := base64.StdEncoding.DecodeString(salt)
-	pwdAdd := append([]byte(pwd), s...)
+	pwdAdd := append([]byte(username+pwd), s...)
 	h := sha256.New()
 	h.Write(pwdAdd)
 	result := h.Sum(nil)
@@ -57,36 +56,40 @@ func hashPwd(pwd string, salt string) string {
 
 func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var err error
+	data := map[string]interface{}{}
+	data["ErrStr"] = "Login error!"
 	err = r.ParseForm()
 	if err != nil {
-		showPage(w, "Login failed", LoginPage)
+		showPage(w, data, LoginPage)
 		return
 	}
 	if len(r.Form["username"][0]) == 0 {
-		showPage(w, "Username is empty!", LoginPage)
+		data["ErrStr"] = "Username is empty!"
+		showPage(w, data, LoginPage)
 		return
 	}
-	if m, _ := regexp.MatchString("^[a-zA-Z]+$", r.Form.Get("username")); !m {
-		showPage(w, "Username is not alphanumeric", LoginPage)
+	if m, _ := regexp.MatchString("^[a-zA-Z0-9]+$", r.Form.Get("username")); !m {
+		data["ErrStr"] = "Username is not alphanumeric!"
+		showPage(w, data, LoginPage)
 		return
 	}
-
 	username := r.Form["username"][0]
 	password := r.Form["password"][0]
 	log.Println("Username:", username, "Password:", password)
-	passwordHash := hashPwd(password, PwdSalt)
+	passwordHash := hashPwd(username, password, PwdSalt)
 	req := &UserData{
 		Name:     "",
 		Username: username,
 		Email:    "",
 		Password: passwordHash,
+		Role:     "",
 	}
 	reqJson, _ := json.Marshal(req)
 	log.Println(string(reqJson))
 
 	request, err := http.NewRequest("POST", BackendUrl+"/login", bytes.NewBuffer(reqJson))
 	if err != nil {
-		showPage(w, "Login failed", LoginPage)
+		showPage(w, data, LoginPage)
 		return
 	}
 
@@ -94,7 +97,7 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		showPage(w, "Login failed", LoginPage)
+		showPage(w, data, LoginPage)
 		return
 	}
 	defer response.Body.Close()
@@ -102,58 +105,70 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	resp := &ResponseData{}
 	err = json.NewDecoder(response.Body).Decode(resp)
 	if err != nil || resp.ErrStr != "success" {
-		showPage(w, "Login error", LoginPage)
+		showPage(w, data, LoginPage)
 		return
 	}
-	//showPage(w, "Login success", LoginPage)
 	http.Redirect(w, r, FrontEndUrl, http.StatusMovedPermanently)
 }
 
 func register(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
-	showPage(w, "", RegisterPage)
+	showPage(w, nil, RegisterPage)
 }
 
 func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var err error
+	data := map[string]interface{}{}
+	data["ErrStr"] = "Registration error!"
 	err = r.ParseForm()
 	if err != nil {
-		showPage(w, "Registration failed", RegisterPage)
-		return
-	}
-	if len(r.Form["username"][0]) == 0 {
-		showPage(w, "Username is empty", RegisterPage)
-		return
-	}
-	if m, _ := regexp.MatchString("^[a-zA-Z]+$", r.Form.Get("username")); !m {
-		showPage(w, "Username is not alphanumeric", RegisterPage)
-		return
-	}
-	if m, _ := regexp.MatchString(`^([\w._]{2,10})@(\w+).([a-z]{2,4})$`, r.Form.Get("email")); !m {
-		showPage(w, "Email format error", RegisterPage)
+		showPage(w, data, RegisterPage)
 		return
 	}
 	name := r.Form["name"][0]
 	username := r.Form["username"][0]
 	password := r.Form["password"][0]
 	email := r.Form["email"][0]
+	role := r.Form["role"][0]
 	log.Println("Name: ", name)
 	log.Println("Username: ", username)
 	log.Println("Password: ", password)
 	log.Println("Email: ", email)
-	passwordHash := hashPwd(password, PwdSalt)
+	log.Println("Role: ", role)
+	passwordHash := hashPwd(username, password, PwdSalt)
+	if len(username) <= 0 {
+		data["ErrStr"] = "Username must not empty!"
+		showPage(w, data, RegisterPage)
+		return
+	}
+	if m, _ := regexp.MatchString("^[a-zA-Z0-9]+$", r.Form.Get("username")); !m {
+		data["ErrStr"] = "Username is not alphanumeric!"
+		showPage(w, data, RegisterPage)
+		return
+	}
+	if m, _ := regexp.MatchString(`^([\w._]{2,10})@(\w+).([a-z]{2,4})$`, r.Form.Get("email")); !m {
+		data["ErrStr"] = "Email format error!"
+		showPage(w, data, RegisterPage)
+		return
+	}
+	if role != "admin" && role != "user" {
+		data["ErrStr"] = "Please check role account!"
+		showPage(w, data, RegisterPage)
+		return
+	}
 
 	req := &UserData{
 		Name:     name,
 		Username: username,
 		Email:    email,
 		Password: passwordHash,
+		Role:     role,
 	}
 	reqJson, _ := json.Marshal(req)
 	log.Println(string(reqJson))
 
 	request, err := http.NewRequest("POST", BackendUrl+"/register", bytes.NewBuffer(reqJson))
 	if err != nil {
-		showPage(w, "Registration failed", RegisterPage)
+		showPage(w, data, RegisterPage)
 		return
 	}
 
@@ -161,7 +176,7 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		showPage(w, "Registration failed", RegisterPage)
+		showPage(w, data, RegisterPage)
 		return
 	}
 	defer response.Body.Close()
@@ -169,11 +184,10 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	resp := &ResponseData{}
 	err = json.NewDecoder(response.Body).Decode(resp)
 	if err != nil || resp.ErrStr != "success" {
-		showPage(w, "Registration failed", RegisterPage)
+		showPage(w, data, RegisterPage)
 		return
 	}
-	//showPage(w, "Registration success", RegisterPage)
-	http.Redirect(w, r, FrontEndUrl, http.StatusMovedPermanently)
+	http.Redirect(w, r, FrontEndUrl+"/login", http.StatusMovedPermanently)
 }
 
 func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {

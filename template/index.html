@@ -13,6 +13,8 @@
             <th scope="col">Username</th>
             <th scope="col">Email</th>
             <th scope="col">Password</th>
+            <th scope="col">Role</th>
+            <th scope="col">Action</th>
         </tr>
         </thead>
         <tbody>
@@ -22,6 +24,8 @@
                 <td>{{ .Username }}</td>
                 <td>{{ .Email }}</td>
                 <td>{{ .Password }}</td>
+                <td>{{ .Role }}</td>
+                <td><a href="/edit">Edit</a>  <a href="/remove">Remove</a></td>
             </tr>
         {{end}}
         </tbody>

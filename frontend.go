@@ -29,7 +29,6 @@ type ResponseData struct {
 	ErrStr string `json:"err_str"`
 }
 
-const FrontEndUrl = "http://localhost:8080"
 const BackendUrl = "http://localhost:9090"
 const LoginPage = "./template/login.html"
 const RegisterPage = "./template/register.html"
@@ -102,13 +101,15 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 	defer response.Body.Close()
 
-	resp := &ResponseData{}
+	resp := &UserDataList{}
 	err = json.NewDecoder(response.Body).Decode(resp)
-	if err != nil || resp.ErrStr != "success" {
+	log.Println(resp)
+	if err != nil || resp.Resp.ErrStr != "success" {
+		data["ErrStr"] = resp.Resp.ErrStr
 		showPage(w, data, LoginPage)
 		return
 	}
-	http.Redirect(w, r, FrontEndUrl, http.StatusMovedPermanently)
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
 func register(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -181,13 +182,15 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 	defer response.Body.Close()
 
-	resp := &ResponseData{}
+	resp := &UserDataList{}
 	err = json.NewDecoder(response.Body).Decode(resp)
-	if err != nil || resp.ErrStr != "success" {
+	log.Println(resp)
+	if err != nil || resp.Resp.ErrStr != "success" {
+		data["ErrStr"] = resp.Resp.ErrStr
 		showPage(w, data, RegisterPage)
 		return
 	}
-	http.Redirect(w, r, FrontEndUrl+"/login", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
 func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {

@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"github.com/gorilla/securecookie"
+	"github.com/gorilla/sessions"
 	"github.com/julienschmidt/httprouter"
 	"html/template"
 	"log"
 	"net/http"
+	"reflect"
 	"regexp"
 )
 
@@ -34,6 +38,7 @@ const LoginPage = "./template/login.html"
 const RegisterPage = "./template/register.html"
 const IndexPage = "./template/index.html"
 const PwdSalt = "rIc[@(}sgO>LNyAzaJ?k.RUhYOKZtQ#rlB+$r-e%rr*L-CF+33JTrg@}50E`X/50"
+const SessionName = "auth-session-name"
 
 func showPage(w http.ResponseWriter, data interface{}, pagePath string) {
 	t, _ := template.ParseFiles(pagePath)
@@ -109,6 +114,12 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		showPage(w, data, LoginPage)
 		return
 	}
+	session, _ := store.New(r, SessionName)
+	session.Values["username"] = resp.UserList[0].Username
+	session.Values["role"] = resp.UserList[0].Role
+	session.Values["email"] = resp.UserList[0].Email
+	session.Values["name"] = resp.UserList[0].Name
+	err = session.Save(r, w)
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
@@ -190,10 +201,16 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		showPage(w, data, RegisterPage)
 		return
 	}
+	session, _ := store.New(r, SessionName)
+	session.Values["username"] = resp.UserList[0].Username
+	session.Values["role"] = resp.UserList[0].Role
+	session.Values["email"] = resp.UserList[0].Email
+	session.Values["name"] = resp.UserList[0].Name
+	err = session.Save(r, w)
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
-func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
+func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	req := &UserData{}
 	reqJson, _ := json.Marshal(req)
 	request, err := http.NewRequest("POST", BackendUrl+"/list", bytes.NewBuffer(reqJson))
@@ -215,8 +232,23 @@ func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	err = json.NewDecoder(response.Body).Decode(resp)
 	if err != nil || resp.Resp.ErrStr != "success" {
 		log.Println(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, resp.Resp.ErrStr, http.StatusBadRequest)
 		return
+	}
+	session, _ := store.Get(r, SessionName)
+	usernameSession := session.Values["username"]
+	if usernameSession == "" {
+		http.Redirect(w, r, "/login", http.StatusMovedPermanently)
+	}
+	isValidSession := false
+	for _, userD := range resp.UserList {
+		if reflect.DeepEqual(userD.Username, usernameSession) {
+			isValidSession = true
+			break
+		}
+	}
+	if !isValidSession {
+		http.Redirect(w, r, "/login", http.StatusMovedPermanently)
 	}
 	t, err := template.ParseFiles(IndexPage)
 	if err != nil {
@@ -227,6 +259,34 @@ func index(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
 	_ = t.Execute(w, resp)
 }
 
+func logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	session, _ := store.Get(r, SessionName)
+	session.Values["username"] = ""
+	session.Values["role"] = ""
+	session.Values["email"] = ""
+	session.Values["name"] = ""
+	err := session.Save(r, w)
+	if err != nil {
+		log.Println(err)
+	}
+	http.Redirect(w, r, "/login", http.StatusMovedPermanently)
+}
+
+var store *sessions.CookieStore
+
+func init() {
+	key := securecookie.GenerateRandomKey(32)
+	keyUsed := hex.EncodeToString(key)
+	log.Println("Key used:", keyUsed)
+	store = sessions.NewCookieStore(key)
+	store.Options = &sessions.Options{
+		Domain:   "localhost:8080",
+		Path:     "/",
+		MaxAge:   3600 * 3, // 3 hours
+		HttpOnly: true,
+	}
+}
+
 func main() {
 	router := httprouter.New()
 	router.GET("/", index)
@@ -234,5 +294,6 @@ func main() {
 	router.POST("/login", loginPost)
 	router.GET("/register", register)
 	router.POST("/register", registerPost)
+	router.GET("/logout", logout)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

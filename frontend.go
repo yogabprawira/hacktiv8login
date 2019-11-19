@@ -113,7 +113,6 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		showPage(w, data, LoginPage)
 		return
 	}
-	log.Println("role", resp.UserList[0].Role)
 	session, _ := store.New(r, SessionName)
 	session.Values["username"] = resp.UserList[0].Username
 	session.Values["role"] = resp.UserList[0].Role
@@ -253,7 +252,6 @@ func edit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	session, _ := store.Get(r, SessionName)
 	usernameSession := session.Values["username"]
 	roleSession := session.Values["role"]
-	log.Println(roleSession, usernameReq, usernameSession)
 	if roleSession != "admin" && usernameReq != usernameSession {
 		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 	}
@@ -292,7 +290,6 @@ func editPost(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if len(userData.Password) > 0 {
 		userData.Password = hashPwd(userData.Username, userData.Password, PwdSalt)
 	}
-	log.Println(userData)
 	userDataJson, err := json.Marshal(&userData)
 	if err != nil {
 		log.Println(err)
@@ -317,7 +314,31 @@ func editPost(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 }
 
 func remove(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-
+	usernameReq := ps.ByName("username")
+	session, _ := store.Get(r, SessionName)
+	usernameSession := session.Values["username"]
+	roleSession := session.Values["role"]
+	if roleSession != "admin" && usernameReq != usernameSession {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	}
+	if reflect.DeepEqual(usernameReq, usernameSession) {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	}
+	response, err := http.Get(BackendUrl + "/remove/" + usernameReq)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer response.Body.Close()
+	var responseData ResponseData
+	err = json.NewDecoder(response.Body).Decode(&responseData)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
 var store *sessions.CookieStore

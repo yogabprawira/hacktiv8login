@@ -28,7 +28,7 @@
                 <td>{{ .Email }}</td>
                 <td>{{ .Password }}</td>
                 <td>{{ .Role }}</td>
-                <td><a href="/edit">Edit</a>  <a href="/remove">Remove</a></td>
+                <td><a href="/edit/{{.Username}}">Edit</a>  <a href="/remove/{{.Username}}">Remove</a></td>
             </tr>
         {{end}}
         </tbody>

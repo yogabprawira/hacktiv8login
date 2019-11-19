@@ -34,15 +34,25 @@ type ResponseData struct {
 }
 
 const BackendUrl = "http://localhost:9090"
+
 const LoginPage = "./template/login.html"
 const RegisterPage = "./template/register.html"
 const IndexPage = "./template/index.html"
+const EditPage = "./template/edit.html"
+
 const PwdSalt = "rIc[@(}sgO>LNyAzaJ?k.RUhYOKZtQ#rlB+$r-e%rr*L-CF+33JTrg@}50E`X/50"
 const SessionName = "auth-session-name"
 
 func showPage(w http.ResponseWriter, data interface{}, pagePath string) {
-	t, _ := template.ParseFiles(pagePath)
-	_ = t.Execute(w, data)
+	t, err := template.ParseFiles(pagePath)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	err = t.Execute(w, data)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func login(w http.ResponseWriter, _ *http.Request, _ httprouter.Params) {
@@ -79,7 +89,6 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	}
 	username := r.Form["username"][0]
 	password := r.Form["password"][0]
-	log.Println("Username:", username, "Password:", password)
 	passwordHash := hashPwd(username, password, PwdSalt)
 	req := &UserData{
 		Name:     "",
@@ -89,17 +98,8 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		Role:     "",
 	}
 	reqJson, _ := json.Marshal(req)
-	log.Println(string(reqJson))
 
-	request, err := http.NewRequest("POST", BackendUrl+"/login", bytes.NewBuffer(reqJson))
-	if err != nil {
-		showPage(w, data, LoginPage)
-		return
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
+	response, err := http.Post(BackendUrl+"/login", "application/json", bytes.NewBuffer(reqJson))
 	if err != nil {
 		showPage(w, data, LoginPage)
 		return
@@ -108,12 +108,12 @@ func loginPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	resp := &UserDataList{}
 	err = json.NewDecoder(response.Body).Decode(resp)
-	log.Println(resp)
 	if err != nil || resp.Resp.ErrStr != "success" {
 		data["ErrStr"] = resp.Resp.ErrStr
 		showPage(w, data, LoginPage)
 		return
 	}
+	log.Println("role", resp.UserList[0].Role)
 	session, _ := store.New(r, SessionName)
 	session.Values["username"] = resp.UserList[0].Username
 	session.Values["role"] = resp.UserList[0].Role
@@ -141,11 +141,6 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	password := r.Form["password"][0]
 	email := r.Form["email"][0]
 	role := r.Form["role"][0]
-	log.Println("Name: ", name)
-	log.Println("Username: ", username)
-	log.Println("Password: ", password)
-	log.Println("Email: ", email)
-	log.Println("Role: ", role)
 	passwordHash := hashPwd(username, password, PwdSalt)
 	if len(username) <= 0 {
 		data["ErrStr"] = "Username must not empty!"
@@ -176,17 +171,8 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		Role:     role,
 	}
 	reqJson, _ := json.Marshal(req)
-	log.Println(string(reqJson))
 
-	request, err := http.NewRequest("POST", BackendUrl+"/register", bytes.NewBuffer(reqJson))
-	if err != nil {
-		showPage(w, data, RegisterPage)
-		return
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
+	response, err := http.Post(BackendUrl+"/register", "application/json", bytes.NewBuffer(reqJson))
 	if err != nil {
 		showPage(w, data, RegisterPage)
 		return
@@ -195,7 +181,6 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 
 	resp := &UserDataList{}
 	err = json.NewDecoder(response.Body).Decode(resp)
-	log.Println(resp)
 	if err != nil || resp.Resp.ErrStr != "success" {
 		data["ErrStr"] = resp.Resp.ErrStr
 		showPage(w, data, RegisterPage)
@@ -213,15 +198,7 @@ func registerPost(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	req := &UserData{}
 	reqJson, _ := json.Marshal(req)
-	request, err := http.NewRequest("POST", BackendUrl+"/list", bytes.NewBuffer(reqJson))
-	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
+	response, err := http.Post(BackendUrl+"/list", "application/json", bytes.NewBuffer(reqJson))
 	if err != nil {
 		log.Println(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -241,7 +218,6 @@ func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	if val != nil {
 		usernameSession = val.(string)
 	}
-	log.Println("username:", usernameSession)
 	if len(usernameSession) <= 0 {
 		http.Redirect(w, r, "/login", http.StatusMovedPermanently)
 	}
@@ -255,13 +231,8 @@ func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	if !isValidSession {
 		http.Redirect(w, r, "/login", http.StatusMovedPermanently)
 	}
-	t, err := template.ParseFiles(IndexPage)
-	if err != nil {
-		log.Println(err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	_ = t.Execute(w, resp)
+
+	showPage(w, resp, IndexPage)
 }
 
 func logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -282,13 +253,67 @@ func edit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	session, _ := store.Get(r, SessionName)
 	usernameSession := session.Values["username"]
 	roleSession := session.Values["role"]
+	log.Println(roleSession, usernameReq, usernameSession)
 	if roleSession != "admin" && usernameReq != usernameSession {
 		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 	}
+
+	response, err := http.Get(BackendUrl + "/user/" + usernameReq)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer response.Body.Close()
+
+	var userData UserData
+	err = json.NewDecoder(response.Body).Decode(&userData)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	showPage(w, userData, EditPage)
 }
 
 func editPost(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	var userData UserData
+	userData.Name = r.Form["name"][0]
+	userData.Username = r.Form["username"][0]
+	userData.Password = r.Form["password"][0]
+	userData.Email = r.Form["email"][0]
+	userData.Role = r.Form["role"][0]
+	if len(userData.Password) > 0 {
+		userData.Password = hashPwd(userData.Username, userData.Password, PwdSalt)
+	}
+	log.Println(userData)
+	userDataJson, err := json.Marshal(&userData)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	response, err := http.Post(BackendUrl+"/edit/"+userData.Username, "application/json", bytes.NewReader(userDataJson))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	defer response.Body.Close()
+	var responseData ResponseData
+	err = json.NewDecoder(response.Body).Decode(&responseData)
+	if err != nil {
+		log.Println(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
 func remove(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -314,6 +339,6 @@ func main() {
 	router.GET("/logout", logout)
 	router.GET("/edit/:username", edit)
 	router.POST("/edit/:username", editPost)
-	router.GET("/remove", remove)
+	router.GET("/remove/:username", remove)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

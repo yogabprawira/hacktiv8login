@@ -272,6 +272,24 @@ func logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	http.Redirect(w, r, "/login", http.StatusMovedPermanently)
 }
 
+func edit(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	usernameReq := ps.ByName("username")
+	session, _ := store.Get(r, SessionName)
+	usernameSession := session.Values["username"]
+	roleSession := session.Values["role"]
+	if roleSession != "admin" && usernameReq != usernameSession {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	}
+}
+
+func editPost(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+}
+
+func remove(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+
+}
+
 var store *sessions.CookieStore
 
 func init() {
@@ -295,5 +313,8 @@ func main() {
 	router.GET("/register", register)
 	router.POST("/register", registerPost)
 	router.GET("/logout", logout)
+	router.GET("/edit/:username", edit)
+	router.POST("/edit/:username", editPost)
+	router.GET("/remove", remove)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

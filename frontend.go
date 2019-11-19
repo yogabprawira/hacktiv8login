@@ -236,8 +236,13 @@ func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		return
 	}
 	session, _ := store.Get(r, SessionName)
-	usernameSession := session.Values["username"]
-	if usernameSession == "" {
+	usernameSession := ""
+	val := session.Values["username"]
+	if val != nil {
+		usernameSession = val.(string)
+	}
+	log.Println("username:", usernameSession)
+	if len(usernameSession) <= 0 {
 		http.Redirect(w, r, "/login", http.StatusMovedPermanently)
 	}
 	isValidSession := false
@@ -260,7 +265,7 @@ func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 }
 
 func logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	session, _ := store.Get(r, SessionName)
+	session, _ := store.New(r, SessionName)
 	session.Values["username"] = ""
 	session.Values["role"] = ""
 	session.Values["email"] = ""
@@ -297,12 +302,6 @@ func init() {
 	keyUsed := hex.EncodeToString(key)
 	log.Println("Key used:", keyUsed)
 	store = sessions.NewCookieStore(key)
-	store.Options = &sessions.Options{
-		Domain:   "localhost:8080",
-		Path:     "/",
-		MaxAge:   3600 * 3, // 3 hours
-		HttpOnly: true,
-	}
 }
 
 func main() {
